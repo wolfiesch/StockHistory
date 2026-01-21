@@ -257,12 +257,11 @@ export function DCAChartCanvas() {
   // Always render the chart container to keep the ref attached
   // Show overlays for different states
   return (
-    <div className="h-[400px] bg-gray-900/50 rounded-xl relative overflow-hidden">
+    <div className="h-[50vh] min-h-[400px] max-h-[700px] bg-gray-900/50 rounded-xl relative overflow-hidden">
       {/* Chart container - always rendered to keep ref attached */}
       <div
         ref={containerRef}
-        style={{ width: '100%', height: '368px' }}
-        className={showChart ? '' : 'invisible'}
+        className={`w-full h-[calc(100%-32px)] ${showChart ? '' : 'invisible'}`}
       />
 
       {/* State overlays - positioned absolutely over the chart area */}
