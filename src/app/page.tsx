@@ -21,8 +21,8 @@ function TrendUpIcon() {
 }
 
 export default function Home() {
-  // Initialize simulation hook
-  const { isLoading, error } = useDCASimulation()
+  // Initialize simulation hook (manages data fetching based on config changes)
+  useDCASimulation()
 
   return (
     <main className="min-h-screen p-4 md:p-8">

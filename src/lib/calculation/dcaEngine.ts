@@ -26,7 +26,7 @@ function getInvestmentDates(
   const start = new Date(startDate)
   const end = new Date(endDate)
 
-  let current = new Date(start)
+  const current = new Date(start)
 
   while (current <= end) {
     dates.add(current.toISOString().split('T')[0])

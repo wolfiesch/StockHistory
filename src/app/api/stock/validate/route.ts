@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
       const searchData = await searchResponse.json()
       if (Array.isArray(searchData) && searchData.length > 0) {
         const match = searchData.find(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (item: any) => item.Code?.toUpperCase() === normalized
         )
         if (match) {

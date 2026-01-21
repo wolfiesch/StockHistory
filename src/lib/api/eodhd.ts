@@ -15,6 +15,7 @@ function parseNumber(value: unknown): number {
   return 0
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parsePricePoints(values: any[]): PricePoint[] {
   return (values ?? [])
     .map((item) => {
@@ -107,6 +108,7 @@ export async function getDividends(
   if (!Array.isArray(data)) return []
 
   // Parse dividends from the /div endpoint format
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dividends: DividendHistory[] = data.map((entry: any) => ({
     exDate: entry.date ?? '',
     paymentDate: entry.paymentDate ?? '',

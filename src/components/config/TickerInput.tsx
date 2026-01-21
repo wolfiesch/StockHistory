@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useConfigStore } from '@/store/configStore'
 
 // Common US stocks for quick selection

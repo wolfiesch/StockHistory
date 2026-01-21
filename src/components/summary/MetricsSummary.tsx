@@ -3,7 +3,7 @@
 import { useSimulationStore } from '@/store/simulationStore'
 import { usePlaybackStore } from '@/store/playbackStore'
 import { formatCurrency, formatPercent, formatShares } from '@/lib/calculation/dcaEngine'
-import { MetricsSkeleton, SkeletonCard } from '@/components/ui/Skeleton'
+import { MetricsSkeleton } from '@/components/ui/Skeleton'
 
 interface MetricCardProps {
   label: string
