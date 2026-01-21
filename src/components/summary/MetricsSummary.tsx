@@ -1,9 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { usePlaybackStore } from '@/store/playbackStore'
+import { useConfigStore } from '@/store/configStore'
 import { formatCurrency, formatPercent, formatShares } from '@/lib/calculation/dcaEngine'
 import { MetricsSkeleton } from '@/components/ui/Skeleton'
+import { exportSimulationToCSV } from '@/lib/export/csvExport'
+import { getShareableURL } from '@/hooks/useURLSync'
 
 interface MetricCardProps {
   label: string
@@ -22,9 +26,65 @@ function MetricCard({ label, value, subValue, colorClass = 'text-white' }: Metri
   )
 }
 
+function ShareIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+    </svg>
+  )
+}
+
+function DownloadIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+  )
+}
+
 export function MetricsSummary() {
   const { primary } = useSimulationStore()
   const { currentIndex } = usePlaybackStore()
+  const config = useConfigStore()
+  const [copied, setCopied] = useState(false)
+
+  const handleExportCSV = () => {
+    if (!primary || primary.result.points.length === 0) return
+    exportSimulationToCSV(primary.result, {
+      ticker: config.ticker,
+      amount: config.amount,
+      frequency: config.frequency,
+      startDate: config.startDate,
+      isDRIP: config.isDRIP,
+    })
+  }
+
+  const handleShare = async () => {
+    const url = getShareableURL()
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea')
+      textArea.value = url
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
 
   if (!primary || primary.result.points.length === 0) {
     return (
@@ -75,13 +135,31 @@ export function MetricsSummary() {
             Data from {firstDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} - {lastDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} ({actualYears} years)
           </p>
         </div>
-        <span className="text-sm text-gray-400">
-          {new Date(currentPoint.date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          })}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors"
+            title="Copy shareable link"
+          >
+            {copied ? <CheckIcon /> : <ShareIcon />}
+            <span className="hidden sm:inline">{copied ? 'Copied!' : 'Share'}</span>
+          </button>
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors"
+            title="Download CSV"
+          >
+            <DownloadIcon />
+            <span className="hidden sm:inline">Export</span>
+          </button>
+          <span className="text-sm text-gray-400 ml-2">
+            {new Date(currentPoint.date).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -21,7 +21,9 @@ vi.mock('lightweight-charts', () => ({
   AreaSeries: {},
 }))
 
-import { DCAChart } from '../DCAChart'
+// Import DCAChartCanvas directly to bypass Next.js dynamic import
+// (DCAChart uses dynamic import with SSR disabled which shows skeleton in tests)
+import { DCAChartCanvas as DCAChart } from '../DCAChartCanvas'
 
 // Mock the stores
 const mockPrimary = {

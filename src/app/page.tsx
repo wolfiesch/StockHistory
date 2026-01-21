@@ -6,6 +6,12 @@ import { ComparisonGrid } from '@/components/chart/ComparisonGrid'
 import { ConfigPanel } from '@/components/config/ConfigPanel'
 import { MetricsSummary } from '@/components/summary/MetricsSummary'
 import { useDCASimulation } from '@/hooks/useDCASimulation'
+import { useURLSync } from '@/hooks/useURLSync'
+import {
+  ErrorBoundary,
+  ChartErrorFallback,
+  MetricsErrorFallback,
+} from '@/components/ui/ErrorBoundary'
 
 function TrendUpIcon() {
   return (
@@ -23,6 +29,8 @@ function TrendUpIcon() {
 export default function Home() {
   // Initialize simulation hook (manages data fetching based on config changes)
   useDCASimulation()
+  // Sync config with URL for shareable links
+  useURLSync()
 
   return (
     <main className="min-h-screen p-4 md:p-8">
@@ -47,22 +55,32 @@ export default function Home() {
           {/* Main Content */}
           <div className="space-y-6">
             {/* Metrics Summary */}
-            <MetricsSummary />
+            <ErrorBoundary fallback={<MetricsErrorFallback />}>
+              <MetricsSummary />
+            </ErrorBoundary>
 
             {/* Main Chart */}
-            <DCAChart />
+            <ErrorBoundary fallback={<ChartErrorFallback />}>
+              <DCAChart />
+            </ErrorBoundary>
 
             {/* Playback Controls */}
-            <PlaybackControls />
+            <ErrorBoundary>
+              <PlaybackControls />
+            </ErrorBoundary>
 
             {/* Comparison Grid (if comparisons exist) */}
-            <ComparisonGrid />
+            <ErrorBoundary>
+              <ComparisonGrid />
+            </ErrorBoundary>
           </div>
 
           {/* Sidebar */}
           <aside>
             <div className="sticky top-4">
-              <ConfigPanel />
+              <ErrorBoundary>
+                <ConfigPanel />
+              </ErrorBoundary>
             </div>
           </aside>
         </div>
