@@ -35,7 +35,13 @@ function ResetIcon() {
 
 export function PlaybackControls() {
   const { primary } = useSimulationStore()
-  const { setSpeed } = usePlaybackStore()
+  const {
+    setSpeed,
+    adaptiveXAxis,
+    adaptiveYAxis,
+    setAdaptiveXAxis,
+    setAdaptiveYAxis,
+  } = usePlaybackStore()
 
   const totalPoints = primary?.result.points.length ?? 0
   const { isPlaying, currentIndex, speed, progress, toggle, seek, reset } =
@@ -141,6 +147,43 @@ export function PlaybackControls() {
               {option.label}
             </button>
           ))}
+        </div>
+
+        {/* Axis toggles */}
+        <div className="flex items-center gap-2 ml-4 border-l border-gray-700 pl-4">
+          <span className="text-xs text-gray-500">Axes:</span>
+          <button
+            onClick={() => setAdaptiveXAxis(!adaptiveXAxis)}
+            disabled={isDisabled}
+            className={`px-2 py-1 text-xs rounded transition-colors ${
+              adaptiveXAxis
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={
+              adaptiveXAxis
+                ? 'X-Axis: Adaptive (rescales)'
+                : 'X-Axis: Fixed (stable)'
+            }
+          >
+            X: {adaptiveXAxis ? 'Adapt' : 'Fixed'}
+          </button>
+          <button
+            onClick={() => setAdaptiveYAxis(!adaptiveYAxis)}
+            disabled={isDisabled}
+            className={`px-2 py-1 text-xs rounded transition-colors ${
+              adaptiveYAxis
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={
+              adaptiveYAxis
+                ? 'Y-Axis: Adaptive (rescales)'
+                : 'Y-Axis: Fixed (stable)'
+            }
+          >
+            Y: {adaptiveYAxis ? 'Adapt' : 'Fixed'}
+          </button>
         </div>
       </div>
     </div>

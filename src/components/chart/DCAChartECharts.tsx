@@ -17,7 +17,7 @@ export function DCAChartECharts() {
   const chartRef = useRef<ReactECharts>(null)
 
   const { primary } = useSimulationStore()
-  const { currentIndex } = usePlaybackStore()
+  const { currentIndex, adaptiveXAxis, adaptiveYAxis } = usePlaybackStore()
 
   // Slice data up to current playback index for progressive reveal
   const visibleData = useMemo(() => {
@@ -32,14 +32,26 @@ export function DCAChartECharts() {
       return {}
     }
 
-    const dates = visibleData.map((p) => p.date)
+    // Full dates for stable x-axis labels throughout playback (fixed mode)
+    // Visible dates only for adaptive mode
+    const allPoints = primary?.result?.points ?? []
+    const allDates = allPoints.map((p) => p.date)
+    const visibleDates = visibleData.map((p) => p.date)
     const principalData = visibleData.map((p) => p.principal)
     const marketValueData = visibleData.map((p) => p.marketValue)
 
-    // Calculate interval from FULL dataset to keep labels stable during playback
-    // Using visible data length causes labels to shift as playback progresses
-    const fullDataLength = primary?.result?.points?.length ?? dates.length
-    const labelInterval = Math.max(1, Math.floor(fullDataLength / 10))
+    // Calculate y-axis range from FULL dataset for fixed mode
+    const allValues = allPoints.flatMap((p) => [p.principal, p.marketValue])
+    const yMax = Math.max(...allValues, 0)
+    const yAxisMax = yMax * 1.05 // Add 5% headroom so line doesn't touch top edge
+
+    // Calculate y-axis range from VISIBLE data for adaptive mode
+    const visibleValues = visibleData.flatMap((p) => [p.principal, p.marketValue])
+    const visibleYMax = Math.max(...visibleValues, 0) * 1.05
+
+    // Calculate label intervals based on data source
+    const xAxisDates = adaptiveXAxis ? visibleDates : allDates
+    const labelInterval = Math.max(1, Math.floor(xAxisDates.length / 10))
 
     return {
       backgroundColor: 'transparent',
@@ -112,7 +124,7 @@ export function DCAChartECharts() {
       },
       xAxis: {
         type: 'category',
-        data: dates,
+        data: xAxisDates,
         boundaryGap: false,
         axisLine: {
           lineStyle: {
@@ -123,7 +135,7 @@ export function DCAChartECharts() {
           color: '#9ca3af',
           fontSize: 11,
           interval: labelInterval - 1, // Show every Nth label (0-indexed, so -1)
-          rotate: dates.length > 60 ? 45 : 0, // Rotate labels for very long date ranges
+          rotate: xAxisDates.length > 60 ? 45 : 0, // Rotate labels for very long date ranges
           formatter: (value: string) => {
             const date = new Date(value)
             return date.toLocaleDateString('en-US', {
@@ -139,6 +151,8 @@ export function DCAChartECharts() {
       yAxis: {
         type: 'value',
         position: 'right',
+        min: 0,
+        max: adaptiveYAxis ? visibleYMax : yAxisMax,
         axisLine: {
           show: false,
         },
@@ -210,7 +224,7 @@ export function DCAChartECharts() {
         },
       ],
     }
-  }, [visibleData, primary?.result?.points])
+  }, [visibleData, primary?.result?.points, adaptiveXAxis, adaptiveYAxis])
 
   // Determine display state
   const showLoading = primary?.isLoading
