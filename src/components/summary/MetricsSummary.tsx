@@ -74,9 +74,11 @@ interface MetricsSummaryProps {
 }
 
 export function MetricsSummary({ onSettingsClick }: MetricsSummaryProps) {
-  const { primary } = useSimulationStore()
+  const { primary, benchmarks } = useSimulationStore()
   const { currentIndex } = usePlaybackStore()
   const config = useConfigStore()
+  const showLumpSum = config.showLumpSum
+  const benchmarkTickers = config.benchmarkTickers
   const [copied, setCopied] = useState(false)
 
   const handleExportCSV = () => {
@@ -86,6 +88,7 @@ export function MetricsSummary({ onSettingsClick }: MetricsSummaryProps) {
       amount: config.amount,
       frequency: config.frequency,
       startDate: config.startDate,
+      endDate: config.endDate,
       isDRIP: config.isDRIP,
     })
   }
@@ -127,12 +130,20 @@ export function MetricsSummary({ onSettingsClick }: MetricsSummaryProps) {
 
   const { result } = primary
   const currentPoint = result.points[currentIndex] || result.points[result.points.length - 1]
+  const lumpSumResult = primary.lumpSumResult
+  const lumpSumPoint = lumpSumResult?.points[currentIndex]
+    || lumpSumResult?.points[lumpSumResult.points.length - 1]
 
   // Calculate metrics at current point in time
   const invested = currentPoint.principal
   const currentValue = currentPoint.totalValue
   const returnValue = invested > 0 ? ((currentValue - invested) / invested) * 100 : 0
   const shares = currentPoint.shares
+  const lumpSumValue = lumpSumPoint?.totalValue ?? 0
+  const dcaVsLumpSum = currentValue - lumpSumValue
+  const dcaVsLumpSumPercent = lumpSumValue > 0
+    ? (dcaVsLumpSum / lumpSumValue) * 100
+    : 0
 
   // For CAGR, calculate based on time from start to current point
   const startDate = new Date(result.points[0].date)
@@ -143,6 +154,7 @@ export function MetricsSummary({ onSettingsClick }: MetricsSummaryProps) {
     : 0
 
   const returnColorClass = returnValue >= 0 ? 'text-green-400' : 'text-red-400'
+  const deltaColorClass = dcaVsLumpSum >= 0 ? 'text-green-400' : 'text-red-400'
 
   // Calculate actual data range
   const firstDate = new Date(result.points[0].date)
@@ -195,6 +207,12 @@ export function MetricsSummary({ onSettingsClick }: MetricsSummaryProps) {
         </div>
       </div>
 
+      {primary.dividendsUnavailable && (
+        <div className="rounded-lg border border-yellow-900/50 bg-yellow-900/20 px-3 py-2 text-sm text-yellow-200">
+          Dividend data unavailable. {config.isDRIP ? 'DRIP results may be understated.' : 'Returns exclude dividends.'}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
           label="Total Invested"
@@ -217,6 +235,50 @@ export function MetricsSummary({ onSettingsClick }: MetricsSummaryProps) {
           value={formatShares(shares)}
         />
       </div>
+
+      {showLumpSum && lumpSumPoint && lumpSumResult && lumpSumResult.totalInvested > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MetricCard
+            label="Lump Sum Value"
+            value={formatCurrency(lumpSumValue)}
+            subValue={`Invested: ${formatCurrency(lumpSumResult.totalInvested)}`}
+          />
+          <MetricCard
+            label="DCA vs Lump Sum"
+            value={`${dcaVsLumpSum >= 0 ? '+' : ''}${formatCurrency(dcaVsLumpSum)}`}
+            subValue={`Delta: ${formatPercent(dcaVsLumpSumPercent)}`}
+            colorClass={deltaColorClass}
+          />
+        </div>
+      )}
+
+      {/* Benchmark Comparisons */}
+      {benchmarkTickers.length > 0 && benchmarks.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {benchmarks.map((bench) => {
+            if (!bench.result?.points || bench.result.points.length === 0) {
+              return null
+            }
+            const benchPoint = bench.result.points[currentIndex] || bench.result.points[bench.result.points.length - 1]
+            const benchValue = benchPoint.marketValue
+            const deltaVsBench = currentValue - benchValue
+            const deltaVsBenchPercent = benchValue > 0
+              ? (deltaVsBench / benchValue) * 100
+              : 0
+            const benchColorClass = deltaVsBench >= 0 ? 'text-green-400' : 'text-red-400'
+
+            return (
+              <MetricCard
+                key={bench.ticker}
+                label={`vs ${bench.ticker}`}
+                value={`${deltaVsBench >= 0 ? '+' : ''}${formatCurrency(deltaVsBench)}`}
+                subValue={`${deltaVsBench >= 0 ? '+' : ''}${formatPercent(deltaVsBenchPercent)} (${bench.ticker}: ${formatCurrency(benchValue)})`}
+                colorClass={benchColorClass}
+              />
+            )
+          })}
+        </div>
+      )}
 
       {/* Final metrics at end of simulation */}
       {currentIndex === result.points.length - 1 && (

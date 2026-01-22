@@ -71,6 +71,30 @@ function findNearestTradingDay(
 }
 
 /**
+ * Map scheduled investment dates to actual trading days
+ */
+function buildInvestmentSchedule(
+  startDate: string,
+  endDate: string,
+  frequency: InvestmentFrequency,
+  priceMap: Map<string, PricePoint>,
+  amount: number
+): Map<string, number> {
+  const investmentDates = getInvestmentDates(startDate, endDate, frequency)
+  const schedule = new Map<string, number>()
+
+  for (const scheduledDate of investmentDates) {
+    const tradingDate = findNearestTradingDay(scheduledDate, priceMap)
+    if (!tradingDate) continue
+
+    const existing = schedule.get(tradingDate) || 0
+    schedule.set(tradingDate, existing + amount)
+  }
+
+  return schedule
+}
+
+/**
  * Build a map of ex-dividend dates to dividend amounts
  */
 function buildDividendMap(dividends: DividendHistory[]): Map<string, number> {
@@ -136,8 +160,14 @@ export function runDCASimulation(
   // Adjust start date if before available data
   const effectiveStart = startDate < firstDate ? firstDate : startDate
 
-  // Get scheduled investment dates
-  const investmentDates = getInvestmentDates(effectiveStart, lastDate, frequency)
+  // Map scheduled investments to trading days
+  const investmentsByDate = buildInvestmentSchedule(
+    effectiveStart,
+    lastDate,
+    frequency,
+    priceMap,
+    amount
+  )
 
   // Simulation state
   let totalShares = 0
@@ -145,9 +175,6 @@ export function runDCASimulation(
   let cumulativeDividends = 0
 
   const points: SimulationPoint[] = []
-
-  // Track which investment dates we've processed
-  const processedInvestments = new Set<string>()
 
   // Iterate through each trading day
   for (const pricePoint of priceHistory) {
@@ -170,19 +197,12 @@ export function runDCASimulation(
       }
     }
 
-    // Check if this is an investment date
-    // Find the closest scheduled date that maps to this trading day
-    for (const scheduledDate of investmentDates) {
-      if (processedInvestments.has(scheduledDate)) continue
-
-      const tradingDate = findNearestTradingDay(scheduledDate, priceMap)
-      if (tradingDate === date) {
-        // Make investment
-        const sharesBought = amount / price
-        totalShares += sharesBought
-        totalInvested += amount
-        processedInvestments.add(scheduledDate)
-      }
+    // Apply scheduled investment if one maps to this trading day
+    const investmentAmount = investmentsByDate.get(date)
+    if (investmentAmount) {
+      const sharesBought = investmentAmount / price
+      totalShares += sharesBought
+      totalInvested += investmentAmount
     }
 
     // Calculate current market value
@@ -209,6 +229,153 @@ export function runDCASimulation(
     : 0
 
   // Calculate years for CAGR
+  const startMs = new Date(effectiveStart).getTime()
+  const endMs = new Date(lastDate).getTime()
+  const years = (endMs - startMs) / (1000 * 60 * 60 * 24 * 365.25)
+
+  const cagr = calculateCAGR(totalInvested, finalValue, years)
+
+  return {
+    points,
+    finalShares: totalShares,
+    totalInvested,
+    totalDividends: cumulativeDividends,
+    finalValue,
+    totalReturn,
+    cagr,
+  }
+}
+
+/**
+ * Lump sum baseline simulation (invest total contributions at the first investment date)
+ */
+export function runLumpSumSimulation(
+  priceHistory: PricePoint[],
+  dividendHistory: DividendHistory[],
+  config: Omit<DCAConfig, 'ticker'>,
+  totalInvestmentOverride?: number
+): SimulationResult {
+  const { amount, frequency, startDate, isDRIP } = config
+
+  if (priceHistory.length === 0) {
+    return {
+      points: [],
+      finalShares: 0,
+      totalInvested: 0,
+      totalDividends: 0,
+      finalValue: 0,
+      totalReturn: 0,
+      cagr: 0,
+    }
+  }
+
+  const priceMap = new Map<string, PricePoint>()
+  for (const point of priceHistory) {
+    priceMap.set(point.date, point)
+  }
+
+  const dividendMap = buildDividendMap(dividendHistory)
+
+  const firstDate = priceHistory[0].date
+  const lastDate = priceHistory[priceHistory.length - 1].date
+  const effectiveStart = startDate < firstDate ? firstDate : startDate
+
+  const investmentsByDate = buildInvestmentSchedule(
+    effectiveStart,
+    lastDate,
+    frequency,
+    priceMap,
+    amount
+  )
+
+  if (investmentsByDate.size === 0) {
+    return {
+      points: [],
+      finalShares: 0,
+      totalInvested: 0,
+      totalDividends: 0,
+      finalValue: 0,
+      totalReturn: 0,
+      cagr: 0,
+    }
+  }
+
+  const scheduledTotal = Array.from(investmentsByDate.values())
+    .reduce((sum, value) => sum + value, 0)
+  const totalInvestment = totalInvestmentOverride ?? scheduledTotal
+
+  let firstInvestmentDate: string | null = null
+  for (const pricePoint of priceHistory) {
+    if (pricePoint.date < effectiveStart) continue
+    if (investmentsByDate.has(pricePoint.date)) {
+      firstInvestmentDate = pricePoint.date
+      break
+    }
+  }
+
+  if (!firstInvestmentDate || totalInvestment <= 0) {
+    return {
+      points: [],
+      finalShares: 0,
+      totalInvested: 0,
+      totalDividends: 0,
+      finalValue: 0,
+      totalReturn: 0,
+      cagr: 0,
+    }
+  }
+
+  let totalShares = 0
+  let totalInvested = 0
+  let cumulativeDividends = 0
+  let hasInvested = false
+  const points: SimulationPoint[] = []
+
+  for (const pricePoint of priceHistory) {
+    const { date, close: price } = pricePoint
+
+    if (date < effectiveStart) continue
+
+    // Apply dividends before the investment on the same date
+    const dividendAmount = dividendMap.get(date)
+    if (dividendAmount && totalShares > 0) {
+      const dividendReceived = dividendAmount * totalShares
+
+      if (isDRIP) {
+        const newShares = dividendReceived / price
+        totalShares += newShares
+      } else {
+        cumulativeDividends += dividendReceived
+      }
+    }
+
+    if (!hasInvested && date === firstInvestmentDate) {
+      const sharesBought = totalInvestment / price
+      totalShares += sharesBought
+      totalInvested = totalInvestment
+      hasInvested = true
+    }
+
+    const marketValue = totalShares * price
+
+    points.push({
+      date,
+      principal: totalInvested,
+      dividends: cumulativeDividends,
+      marketValue,
+      shares: totalShares,
+      totalValue: marketValue + cumulativeDividends,
+    })
+  }
+
+  const finalValue = points.length > 0
+    ? points[points.length - 1].totalValue
+    : 0
+
+  const totalReturn = totalInvested > 0
+    ? ((finalValue - totalInvested) / totalInvested) * 100
+    : 0
+
   const startMs = new Date(effectiveStart).getTime()
   const endMs = new Date(lastDate).getTime()
   const years = (endMs - startMs) / (1000 * 60 * 60 * 24 * 365.25)

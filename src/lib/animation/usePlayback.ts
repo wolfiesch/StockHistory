@@ -23,6 +23,25 @@ export function usePlayback(totalPoints: number) {
   const accumulatorRef = useRef<number>(0)
   const animationFrameRef = useRef<number | null>(null)
 
+  // Use refs for values accessed inside the animation loop to avoid
+  // re-running the effect when they change (which would break the animation)
+  const currentIndexRef = useRef(currentIndex)
+  const speedRef = useRef(speed)
+  const totalPointsRef = useRef(totalPoints)
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    currentIndexRef.current = currentIndex
+  }, [currentIndex])
+
+  useEffect(() => {
+    speedRef.current = speed
+  }, [speed])
+
+  useEffect(() => {
+    totalPointsRef.current = totalPoints
+  }, [totalPoints])
+
   const play = useCallback(() => {
     setIsPlaying(true)
   }, [setIsPlaying])
@@ -58,9 +77,10 @@ export function usePlayback(totalPoints: number) {
     setIsPlaying(false)
   }, [setCurrentIndex, setIsPlaying])
 
-  // Animation loop
+  // Animation loop - only depends on isPlaying to start/stop
+  // All other values are read from refs to avoid restarting the loop
   useEffect(() => {
-    if (!isPlaying || totalPoints === 0) {
+    if (!isPlaying || totalPointsRef.current === 0) {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
@@ -76,8 +96,8 @@ export function usePlayback(totalPoints: number) {
       const deltaTime = timestamp - lastTimeRef.current
       lastTimeRef.current = timestamp
 
-      // Calculate how many points to advance
-      const pointsPerMs = (BASE_POINTS_PER_SECOND * speed) / 1000
+      // Calculate how many points to advance (read from refs)
+      const pointsPerMs = (BASE_POINTS_PER_SECOND * speedRef.current) / 1000
       accumulatorRef.current += deltaTime * pointsPerMs
 
       // Advance index by accumulated points
@@ -85,11 +105,15 @@ export function usePlayback(totalPoints: number) {
       if (pointsToAdvance > 0) {
         accumulatorRef.current -= pointsToAdvance
 
-        const newIndex = Math.min(currentIndex + pointsToAdvance, totalPoints - 1)
+        const newIndex = Math.min(
+          currentIndexRef.current + pointsToAdvance,
+          totalPointsRef.current - 1
+        )
         setCurrentIndex(newIndex)
+        currentIndexRef.current = newIndex // Keep ref in sync immediately
 
         // Stop at the end
-        if (newIndex >= totalPoints - 1) {
+        if (newIndex >= totalPointsRef.current - 1) {
           setIsPlaying(false)
           return
         }
@@ -108,7 +132,7 @@ export function usePlayback(totalPoints: number) {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [isPlaying, currentIndex, totalPoints, speed, setCurrentIndex, setIsPlaying])
+  }, [isPlaying, setCurrentIndex, setIsPlaying])
 
   // Calculate progress percentage
   const progress = totalPoints > 0 ? (currentIndex / (totalPoints - 1)) * 100 : 0

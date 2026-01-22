@@ -17,6 +17,7 @@ describe('URL Sync Integration', () => {
       store.setAmount(500)
       store.setFrequency('weekly')
       store.setStartDate('2020-01-15')
+      store.setEndDate('2022-12-31')
       store.setIsDRIP(false)
       store.addComparisonTicker('AAPL')
       store.addComparisonTicker('GOOGL')
@@ -27,6 +28,7 @@ describe('URL Sync Integration', () => {
       expect(url).toContain('a=500')
       expect(url).toContain('f=weekly')
       expect(url).toContain('s=2020-01-15')
+      expect(url).toContain('e=2022-12-31')
       expect(url).toContain('d=0')
       expect(url).toContain('c=AAPL%2CGOOGL') // URL encoded comma
     })
@@ -34,6 +36,7 @@ describe('URL Sync Integration', () => {
     it('generates URL without comparison tickers when empty', () => {
       const store = useConfigStore.getState()
       store.setTicker('SPY')
+      store.setEndDate('2021-01-01')
       store.clearComparisons()
 
       const url = getShareableURL()
@@ -49,6 +52,16 @@ describe('URL Sync Integration', () => {
       const url = getShareableURL()
 
       expect(url).toContain('d=1')
+    })
+
+    it('supports tickers with dots and dashes', () => {
+      const store = useConfigStore.getState()
+
+      store.setTicker('BRK.B')
+      expect(getShareableURL()).toContain('t=BRK.B')
+
+      store.setTicker('RDS-A')
+      expect(getShareableURL()).toContain('t=RDS-A')
     })
 
     it('handles all frequency options', () => {
@@ -108,6 +121,11 @@ describe('URL Sync Integration', () => {
       expect(useConfigStore.getState().startDate).toBe('2015-06-15')
     })
 
+    it('parses end date correctly', () => {
+      useConfigStore.getState().setConfig({ endDate: '2021-12-31' })
+      expect(useConfigStore.getState().endDate).toBe('2021-12-31')
+    })
+
     it('parses DRIP boolean correctly', () => {
       useConfigStore.getState().setConfig({ isDRIP: true })
       expect(useConfigStore.getState().isDRIP).toBe(true)
@@ -146,6 +164,7 @@ describe('URL Sync Integration', () => {
         amount: 250,
         frequency: 'biweekly',
         startDate: '2019-03-01',
+        endDate: '2022-10-01',
         isDRIP: false,
         comparisonTickers: ['RIVN'],
       })
@@ -155,6 +174,7 @@ describe('URL Sync Integration', () => {
       expect(state.amount).toBe(250)
       expect(state.frequency).toBe('biweekly')
       expect(state.startDate).toBe('2019-03-01')
+      expect(state.endDate).toBe('2022-10-01')
       expect(state.isDRIP).toBe(false)
       expect(state.comparisonTickers).toEqual(['RIVN'])
     })
@@ -166,6 +186,7 @@ describe('URL Sync Integration', () => {
         amount: 100,
         frequency: 'monthly',
         startDate: '2020-01-01',
+        endDate: '2024-01-01',
         isDRIP: true,
       })
 
@@ -177,6 +198,7 @@ describe('URL Sync Integration', () => {
       expect(state.amount).toBe(100) // Preserved
       expect(state.frequency).toBe('monthly') // Preserved
       expect(state.startDate).toBe('2020-01-01') // Preserved
+      expect(state.endDate).toBe('2024-01-01') // Preserved
       expect(state.isDRIP).toBe(true) // Preserved
     })
   })
@@ -191,6 +213,7 @@ describe('URL Sync Integration', () => {
         amount: 750,
         frequency: 'weekly' as const,
         startDate: '2018-07-20',
+        endDate: '2023-07-20',
         isDRIP: false,
         comparisonTickers: ['SNAP', 'PINS'],
       }
@@ -206,6 +229,7 @@ describe('URL Sync Integration', () => {
         amount: parseInt(params.get('a') || '0', 10),
         frequency: params.get('f') as 'weekly' | 'biweekly' | 'monthly',
         startDate: params.get('s'),
+        endDate: params.get('e'),
         isDRIP: params.get('d') === '1',
         comparisonTickers: params.get('c')?.split(','),
       }
@@ -214,6 +238,7 @@ describe('URL Sync Integration', () => {
       expect(parsedConfig.amount).toBe(originalConfig.amount)
       expect(parsedConfig.frequency).toBe(originalConfig.frequency)
       expect(parsedConfig.startDate).toBe(originalConfig.startDate)
+      expect(parsedConfig.endDate).toBe(originalConfig.endDate)
       expect(parsedConfig.isDRIP).toBe(originalConfig.isDRIP)
       expect(parsedConfig.comparisonTickers).toEqual(originalConfig.comparisonTickers)
     })

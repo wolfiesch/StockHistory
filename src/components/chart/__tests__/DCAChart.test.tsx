@@ -1,34 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-// Mock lightweight-charts (requires browser APIs not available in jsdom)
-vi.mock('lightweight-charts', () => ({
-  createChart: vi.fn(() => ({
-    addSeries: vi.fn(() => ({
-      setData: vi.fn(),
-    })),
-    subscribeCrosshairMove: vi.fn(),
-    unsubscribeCrosshairMove: vi.fn(),
-    timeScale: vi.fn(() => ({
-      fitContent: vi.fn(),
-      setVisibleRange: vi.fn(),
-    })),
-    applyOptions: vi.fn(),
-    remove: vi.fn(),
-  })),
-  ColorType: { Solid: 'solid' },
-  CrosshairMode: { Normal: 0 },
-  AreaSeries: {},
+// Mock echarts-for-react (requires browser APIs not available in jsdom)
+vi.mock('echarts-for-react', () => ({
+  default: vi.fn(() => null),
 }))
 
-// Import DCAChartCanvas directly to bypass Next.js dynamic import
+// Import DCAChartECharts directly to bypass Next.js dynamic import
 // (DCAChart uses dynamic import with SSR disabled which shows skeleton in tests)
-import { DCAChartCanvas as DCAChart } from '../DCAChartCanvas'
+import { DCAChartECharts as DCAChart } from '../DCAChartECharts'
 
 // Mock the stores
 const mockPrimary = {
   isLoading: false,
   error: null,
+  dividendsUnavailable: false,
+  retryAt: null,
+  lumpSumResult: null,
   result: {
     points: [
       { date: '2023-01-01', principal: 100, marketValue: 110, dividends: 0, shares: 10 },
@@ -45,11 +33,15 @@ const mockPrimary = {
 }
 
 vi.mock('@/store/simulationStore', () => ({
-  useSimulationStore: vi.fn(() => ({ primary: null })),
+  useSimulationStore: vi.fn(() => ({ primary: null, benchmarks: [] })),
 }))
 
 vi.mock('@/store/playbackStore', () => ({
   usePlaybackStore: vi.fn(() => ({ currentIndex: 2 })),
+}))
+
+vi.mock('@/store/configStore', () => ({
+  useConfigStore: vi.fn(() => ({ showLumpSum: false })),
 }))
 
 // Import mocked stores to control them
@@ -66,7 +58,7 @@ describe('DCAChart', () => {
 
   describe('hooks rules compliance', () => {
     it('renders without hook violations when primary is null', () => {
-      mockUseSimulationStore.mockReturnValue({ primary: null })
+      mockUseSimulationStore.mockReturnValue({ primary: null, benchmarks: [] })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 0 })
 
       // This would throw "Rendered more hooks than during the previous render"
@@ -78,6 +70,7 @@ describe('DCAChart', () => {
     it('renders without hook violations when loading', () => {
       mockUseSimulationStore.mockReturnValue({
         primary: { isLoading: true, error: null, result: null },
+        benchmarks: [],
       })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 0 })
 
@@ -87,6 +80,7 @@ describe('DCAChart', () => {
     it('renders without hook violations when error', () => {
       mockUseSimulationStore.mockReturnValue({
         primary: { isLoading: false, error: 'Test error', result: null },
+        benchmarks: [],
       })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 0 })
 
@@ -95,7 +89,7 @@ describe('DCAChart', () => {
     })
 
     it('renders without hook violations with data', () => {
-      mockUseSimulationStore.mockReturnValue({ primary: mockPrimary })
+      mockUseSimulationStore.mockReturnValue({ primary: mockPrimary, benchmarks: [] })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 2 })
 
       expect(() => render(<DCAChart />)).not.toThrow()
@@ -103,7 +97,7 @@ describe('DCAChart', () => {
 
     it('handles state transitions without hook violations', () => {
       // Start with null
-      mockUseSimulationStore.mockReturnValue({ primary: null })
+      mockUseSimulationStore.mockReturnValue({ primary: null, benchmarks: [] })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 0 })
 
       const { rerender } = render(<DCAChart />)
@@ -112,17 +106,19 @@ describe('DCAChart', () => {
       // Transition to loading
       mockUseSimulationStore.mockReturnValue({
         primary: { isLoading: true, error: null, result: null },
+        benchmarks: [],
       })
       expect(() => rerender(<DCAChart />)).not.toThrow()
 
       // Transition to data
-      mockUseSimulationStore.mockReturnValue({ primary: mockPrimary })
+      mockUseSimulationStore.mockReturnValue({ primary: mockPrimary, benchmarks: [] })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 2 })
       expect(() => rerender(<DCAChart />)).not.toThrow()
 
       // Transition back to error
       mockUseSimulationStore.mockReturnValue({
         primary: { isLoading: false, error: 'Connection failed', result: null },
+        benchmarks: [],
       })
       expect(() => rerender(<DCAChart />)).not.toThrow()
       expect(screen.getByText('Connection failed')).toBeInTheDocument()
@@ -137,6 +133,7 @@ describe('DCAChart', () => {
           error: null,
           result: { points: [] },
         },
+        benchmarks: [],
       })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 0 })
 

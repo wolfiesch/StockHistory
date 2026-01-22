@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 
-type PlaybackSpeed = 0.5 | 1 | 2 | 4
+type PlaybackSpeed = 0.5 | 1 | 2 | 4 | 8
 
 interface PlaybackState {
   isPlaying: boolean
@@ -33,4 +33,5 @@ export const SPEED_OPTIONS: { value: PlaybackSpeed; label: string }[] = [
   { value: 1, label: '1x' },
   { value: 2, label: '2x' },
   { value: 4, label: '4x' },
+  { value: 8, label: '8x' },
 ]

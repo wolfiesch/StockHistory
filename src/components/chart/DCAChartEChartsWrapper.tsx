@@ -5,10 +5,11 @@ import { ChartSkeleton } from '@/components/ui/Skeleton'
 
 /**
  * Dynamic import wrapper for DCAChartECharts
- * - SSR disabled to prevent canvas/chart issues during server rendering
+ * - SSR disabled to prevent canvas/window issues during server rendering
+ * - ECharts requires browser APIs for canvas rendering
  * - Shows skeleton while the chart component loads
  */
-export const DCAChart = dynamic(
+export const DCAChartEChartsWrapper = dynamic(
   () => import('./DCAChartECharts').then(mod => mod.DCAChartECharts),
   {
     ssr: false,
