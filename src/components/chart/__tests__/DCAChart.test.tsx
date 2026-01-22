@@ -1,29 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-// Mock lightweight-charts (requires browser APIs not available in jsdom)
-vi.mock('lightweight-charts', () => ({
-  createChart: vi.fn(() => ({
-    addSeries: vi.fn(() => ({
-      setData: vi.fn(),
-    })),
-    subscribeCrosshairMove: vi.fn(),
-    unsubscribeCrosshairMove: vi.fn(),
-    timeScale: vi.fn(() => ({
-      fitContent: vi.fn(),
-      setVisibleRange: vi.fn(),
-    })),
-    applyOptions: vi.fn(),
-    remove: vi.fn(),
-  })),
-  ColorType: { Solid: 'solid' },
-  CrosshairMode: { Normal: 0 },
-  AreaSeries: {},
+// Mock echarts-for-react (requires browser APIs not available in jsdom)
+vi.mock('echarts-for-react', () => ({
+  default: vi.fn(() => null),
 }))
 
-// Import DCAChartCanvas directly to bypass Next.js dynamic import
+// Import DCAChartECharts directly to bypass Next.js dynamic import
 // (DCAChart uses dynamic import with SSR disabled which shows skeleton in tests)
-import { DCAChartCanvas as DCAChart } from '../DCAChartCanvas'
+import { DCAChartECharts as DCAChart } from '../DCAChartECharts'
 
 // Mock the stores
 const mockPrimary = {
