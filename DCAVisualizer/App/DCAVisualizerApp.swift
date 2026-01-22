@@ -109,8 +109,10 @@ extension DCAVisualizerApp {
     /// Current environment (change for different builds)
     /// Note: Set to .development if running local Next.js server (pnpm dev)
     static var currentEnvironment: Environment {
-        // Using production for both Debug and Release since backend is deployed
-        // Change to .development if you want to use localhost:3000
+        #if DEBUG
+        .development
+        #else
         .production
+        #endif
     }
 }

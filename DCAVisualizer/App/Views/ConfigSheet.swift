@@ -7,8 +7,6 @@ struct ConfigSheet: View {
     let onDismiss: () -> Void
 
     @State private var tickerInput: String = ""
-    @State private var isValidating = false
-    @State private var validationError: String?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -23,21 +21,8 @@ struct ConfigSheet: View {
                             .autocorrectionDisabled()
                             .onChange(of: tickerInput) { _, newValue in
                                 tickerInput = newValue.uppercased()
-                                validationError = nil
                             }
                             .accessibilityIdentifier("tickerField")
-
-                        if isValidating {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        }
-                    }
-
-                    if let error = validationError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .accessibilityIdentifier("tickerValidationError")
                     }
                 }
 
