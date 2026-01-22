@@ -19,6 +19,7 @@ export function ComparisonGrid() {
       totalReturn: primary.result.totalReturn,
       isLoading: primary.isLoading,
       error: primary.error,
+      retryAt: primary.retryAt,
     },
     ...comparisons.map((c) => ({
       ticker: c.ticker,
@@ -26,6 +27,7 @@ export function ComparisonGrid() {
       totalReturn: c.result.totalReturn,
       isLoading: c.isLoading,
       error: c.error,
+      retryAt: c.retryAt,
     })),
   ].filter(Boolean) as Array<{
     ticker: string
@@ -33,6 +35,7 @@ export function ComparisonGrid() {
     totalReturn: number
     isLoading: boolean
     error: string | null
+    retryAt: number | null
   }>
 
   return (
@@ -48,6 +51,7 @@ export function ComparisonGrid() {
             totalReturn={sim.totalReturn}
             isLoading={sim.isLoading}
             error={sim.error}
+            retryAt={sim.retryAt}
           />
         ))}
       </div>

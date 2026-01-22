@@ -51,6 +51,15 @@ describe('localStorage Persistence Integration', () => {
       expect(parsed.state.startDate).toBe('2015-01-01')
     })
 
+    it('persists endDate changes to localStorage', () => {
+      const store = useConfigStore.getState()
+      store.setEndDate('2022-12-31')
+
+      const saved = localStorage.getItem(STORAGE_KEY)
+      const parsed = JSON.parse(saved!)
+      expect(parsed.state.endDate).toBe('2022-12-31')
+    })
+
     it('persists DRIP toggle to localStorage', () => {
       const store = useConfigStore.getState()
       store.setIsDRIP(false)
@@ -58,6 +67,15 @@ describe('localStorage Persistence Integration', () => {
       const saved = localStorage.getItem(STORAGE_KEY)
       const parsed = JSON.parse(saved!)
       expect(parsed.state.isDRIP).toBe(false)
+    })
+
+    it('persists lump sum toggle to localStorage', () => {
+      const store = useConfigStore.getState()
+      store.setShowLumpSum(false)
+
+      const saved = localStorage.getItem(STORAGE_KEY)
+      const parsed = JSON.parse(saved!)
+      expect(parsed.state.showLumpSum).toBe(false)
     })
 
     it('persists comparison tickers to localStorage', () => {
@@ -98,7 +116,9 @@ describe('localStorage Persistence Integration', () => {
       expect(state).toHaveProperty('amount')
       expect(state).toHaveProperty('frequency')
       expect(state).toHaveProperty('startDate')
+      expect(state).toHaveProperty('endDate')
       expect(state).toHaveProperty('isDRIP')
+      expect(state).toHaveProperty('showLumpSum')
       expect(state).toHaveProperty('comparisonTickers')
 
       // Should NOT persist internal state
@@ -117,7 +137,9 @@ describe('localStorage Persistence Integration', () => {
           amount: 250,
           frequency: 'biweekly',
           startDate: '2019-06-01',
+          endDate: '2024-06-01',
           isDRIP: false,
+          showLumpSum: false,
           comparisonTickers: ['SHOP'],
         },
         version: 0,

@@ -1,4 +1,5 @@
 // EODHD API client adapted for Next.js server-side usage
+import { HTTPError } from './httpError'
 import type { PricePoint, DividendHistory } from './types'
 
 const EOD_BASE_URL = 'https://eodhd.com/api'
@@ -13,6 +14,13 @@ function parseNumber(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0
   }
   return 0
+}
+
+function parseRetryAfterSeconds(response: Response): number | undefined {
+  const header = response.headers.get('retry-after')
+  if (!header) return undefined
+  const parsed = parseInt(header, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,13 +65,35 @@ export async function getDaily(
   const response = await fetch(url, { next: { revalidate: 3600 } })
 
   if (!response.ok) {
-    throw new Error(`EODHD API error: ${response.status}`)
+    const retryAfterSeconds = parseRetryAfterSeconds(response)
+    if (response.status === 429) {
+      throw new HTTPError(
+        'Rate limited by data provider. Please try again later.',
+        429,
+        retryAfterSeconds ?? 60
+      )
+    }
+
+    if (response.status === 404) {
+      throw new HTTPError(`Ticker not found: ${symbol.toUpperCase()}`, 404)
+    }
+
+    throw new HTTPError(
+      `Data provider error (${response.status}). Please try again later.`,
+      response.status
+    )
   }
 
   const data = await response.json()
 
   if (data?.code && data?.message) {
-    throw new Error(data.message)
+    const code = typeof data.code === 'number'
+      ? data.code
+      : typeof data.code === 'string'
+        ? parseInt(data.code, 10)
+        : NaN
+    const status = Number.isFinite(code) && code > 0 ? code : 400
+    throw new HTTPError(String(data.message), status)
   }
 
   if (Array.isArray(data)) {
@@ -96,13 +126,32 @@ export async function getDividends(
   if (!response.ok) {
     // Return empty array if dividends unavailable (some tickers don't have dividends)
     if (response.status === 404) return []
-    throw new Error(`EODHD API error: ${response.status}`)
+
+    const retryAfterSeconds = parseRetryAfterSeconds(response)
+    if (response.status === 429) {
+      throw new HTTPError(
+        'Rate limited by data provider. Please try again later.',
+        429,
+        retryAfterSeconds ?? 60
+      )
+    }
+
+    throw new HTTPError(
+      `Data provider error (${response.status}). Please try again later.`,
+      response.status
+    )
   }
 
   const data = await response.json()
 
   if (data?.code && data?.message) {
-    throw new Error(data.message)
+    const code = typeof data.code === 'number'
+      ? data.code
+      : typeof data.code === 'string'
+        ? parseInt(data.code, 10)
+        : NaN
+    const status = Number.isFinite(code) && code > 0 ? code : 400
+    throw new HTTPError(String(data.message), status)
   }
 
   if (!Array.isArray(data)) return []

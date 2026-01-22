@@ -26,6 +26,7 @@ describe('CSV Export Integration', () => {
     amount: 100,
     frequency: 'monthly' as const,
     startDate: '2023-01-01',
+    endDate: '2023-12-31',
     isDRIP: true,
   }
 
@@ -50,6 +51,7 @@ describe('CSV Export Integration', () => {
       expect(csv).toContain('# Ticker: AAPL')
       expect(csv).toContain('# Investment Amount: $100 monthly')
       expect(csv).toContain('# Start Date: 2023-01-01')
+      expect(csv).toContain('# End Date: 2023-12-31')
       expect(csv).toContain('# DRIP Enabled: Yes')
     })
 
@@ -183,13 +185,13 @@ describe('CSV Export Integration', () => {
       // Mock URL methods
       createObjectURLMock = vi.fn(() => 'blob:http://localhost/mock-url')
       revokeObjectURLMock = vi.fn()
-      global.URL.createObjectURL = createObjectURLMock
-      global.URL.revokeObjectURL = revokeObjectURLMock
+      global.URL.createObjectURL = createObjectURLMock as unknown as typeof URL.createObjectURL
+      global.URL.revokeObjectURL = revokeObjectURLMock as unknown as typeof URL.revokeObjectURL
 
       // Mock DOM methods
       clickMock = vi.fn()
-      appendChildMock = vi.fn()
-      removeChildMock = vi.fn()
+      appendChildMock = vi.fn<(node: Node) => Node>((node) => node)
+      removeChildMock = vi.fn<(node: Node) => Node>((node) => node)
 
       vi.spyOn(document, 'createElement').mockImplementation((tag) => {
         if (tag === 'a') {
@@ -202,8 +204,12 @@ describe('CSV Export Integration', () => {
         return document.createElement(tag)
       })
 
-      vi.spyOn(document.body, 'appendChild').mockImplementation(appendChildMock)
-      vi.spyOn(document.body, 'removeChild').mockImplementation(removeChildMock)
+      vi.spyOn(document.body, 'appendChild').mockImplementation(
+        appendChildMock as unknown as (node: Node) => Node
+      )
+      vi.spyOn(document.body, 'removeChild').mockImplementation(
+        removeChildMock as unknown as (node: Node) => Node
+      )
     })
 
     afterEach(() => {
@@ -243,8 +249,8 @@ describe('CSV Export Integration', () => {
   describe('exportSimulationToCSV', () => {
     beforeEach(() => {
       // Mock the download function
-      global.URL.createObjectURL = vi.fn(() => 'blob:mock')
-      global.URL.revokeObjectURL = vi.fn()
+      global.URL.createObjectURL = vi.fn(() => 'blob:mock') as unknown as typeof URL.createObjectURL
+      global.URL.revokeObjectURL = vi.fn() as unknown as typeof URL.revokeObjectURL
 
       vi.spyOn(document, 'createElement').mockImplementation((tag) => {
         if (tag === 'a') {
@@ -257,8 +263,12 @@ describe('CSV Export Integration', () => {
         return document.createElement(tag)
       })
 
-      vi.spyOn(document.body, 'appendChild').mockImplementation(vi.fn())
-      vi.spyOn(document.body, 'removeChild').mockImplementation(vi.fn())
+      vi.spyOn(document.body, 'appendChild').mockImplementation(
+        vi.fn<(node: Node) => Node>((node) => node) as unknown as (node: Node) => Node
+      )
+      vi.spyOn(document.body, 'removeChild').mockImplementation(
+        vi.fn<(node: Node) => Node>((node) => node) as unknown as (node: Node) => Node
+      )
     })
 
     afterEach(() => {
