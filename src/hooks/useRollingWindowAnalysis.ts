@@ -230,6 +230,7 @@ export function useRollingWindowAnalysis() {
     if (!isRollingMode) {
       clearResults()
       workerRef.current.cancel()
+      lastComputeParamsRef.current = null
       return
     }
 

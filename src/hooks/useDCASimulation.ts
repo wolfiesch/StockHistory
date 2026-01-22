@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef, type MutableRefObject } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useConfigStore } from '@/store/configStore'
 import { useSimulationStore } from '@/store/simulationStore'
@@ -134,6 +134,58 @@ export function useDCASimulation() {
   const stableStartDate = startDate || ''
   const stableEndDate = endDate || ''
 
+  type PeerFetchOptions = {
+    setLoading: (targetTicker: string) => void
+    addResult: (
+      targetTicker: string,
+      result: ReturnType<typeof runDCASimulation>,
+      dividendsUnavailable: boolean
+    ) => void
+    setError: (targetTicker: string, message: string, retryAt?: number) => void
+    retryTimeoutsRef: MutableRefObject<Record<string, ReturnType<typeof setTimeout>>>
+    getActiveTickers: () => string[]
+    fetchRef: MutableRefObject<((ticker: string) => Promise<void>) | null>
+  }
+
+  const runPeerFetch = useCallback(
+    async (targetTicker: string, options: PeerFetchOptions) => {
+      if (!stableStartDate || !stableEndDate) return
+      options.setLoading(targetTicker)
+      try {
+        const data = await fetchStockData(targetTicker, stableStartDate, stableEndDate)
+        const result = runDCASimulation(data.prices, data.dividends, {
+          amount,
+          frequency,
+          startDate: stableStartDate,
+          isDRIP,
+        })
+        options.addResult(targetTicker, result, data.dividendsUnavailable)
+      } catch (error) {
+        if (error instanceof HTTPError && error.status === 429) {
+          const retryAfterSeconds = error.retryAfterSeconds ?? 30
+          const retryAt = Date.now() + retryAfterSeconds * 1000
+          options.setError(targetTicker, error.message, retryAt)
+
+          const existing = options.retryTimeoutsRef.current[targetTicker]
+          if (existing) clearTimeout(existing)
+          options.retryTimeoutsRef.current[targetTicker] = setTimeout(() => {
+            delete options.retryTimeoutsRef.current[targetTicker]
+            if (options.getActiveTickers().includes(targetTicker)) {
+              options.fetchRef.current?.(targetTicker)
+            }
+          }, retryAfterSeconds * 1000)
+          return
+        }
+
+        options.setError(
+          targetTicker,
+          error instanceof Error ? error.message : 'Unknown error'
+        )
+      }
+    },
+    [amount, frequency, stableStartDate, stableEndDate, isDRIP]
+  )
+
   // Primary ticker query
   const primaryQuery = useQuery({
     queryKey: ['stock-data', ticker, stableStartDate, stableEndDate],
@@ -234,48 +286,20 @@ export function useDCASimulation() {
 
   // Comparison tickers queries
   const runComparisonFetch = useCallback(
-    async (compTicker: string) => {
-      if (!stableStartDate || !stableEndDate) return // Guard against hydration state
-      setComparisonLoading(compTicker)
-      try {
-        const data = await fetchStockData(compTicker, stableStartDate, stableEndDate)
-        const result = runDCASimulation(data.prices, data.dividends, {
-          amount,
-          frequency,
-          startDate: stableStartDate,
-          isDRIP,
-        })
-        addComparisonResult(compTicker, result, data.dividendsUnavailable)
-      } catch (error) {
-        if (error instanceof HTTPError && error.status === 429) {
-          const retryAfterSeconds = error.retryAfterSeconds ?? 30
-          const retryAt = Date.now() + retryAfterSeconds * 1000
-          setComparisonError(compTicker, error.message, retryAt)
-
-          const existing = comparisonRetryTimeoutsRef.current[compTicker]
-          if (existing) clearTimeout(existing)
-          comparisonRetryTimeoutsRef.current[compTicker] = setTimeout(() => {
-            delete comparisonRetryTimeoutsRef.current[compTicker]
-            // Only retry if still selected
-            if (useConfigStore.getState().comparisonTickers.includes(compTicker)) {
-              runComparisonFetchRef.current?.(compTicker)
-            }
-          }, retryAfterSeconds * 1000)
-          return
-        }
-
-        setComparisonError(compTicker, error instanceof Error ? error.message : 'Unknown error')
-      }
-    },
+    (compTicker: string) =>
+      runPeerFetch(compTicker, {
+        setLoading: setComparisonLoading,
+        addResult: addComparisonResult,
+        setError: setComparisonError,
+        retryTimeoutsRef: comparisonRetryTimeoutsRef,
+        getActiveTickers: () => useConfigStore.getState().comparisonTickers,
+        fetchRef: runComparisonFetchRef,
+      }),
     [
-      amount,
-      frequency,
-      stableStartDate,
-      stableEndDate,
-      isDRIP,
-      setComparisonLoading,
       addComparisonResult,
+      runPeerFetch,
       setComparisonError,
+      setComparisonLoading,
     ]
   )
 
@@ -305,48 +329,20 @@ export function useDCASimulation() {
 
   // Benchmark tickers fetch (mirrors comparison pattern)
   const runBenchmarkFetch = useCallback(
-    async (benchTicker: string) => {
-      if (!stableStartDate || !stableEndDate) return // Guard against hydration state
-      setBenchmarkLoading(benchTicker)
-      try {
-        const data = await fetchStockData(benchTicker, stableStartDate, stableEndDate)
-        const result = runDCASimulation(data.prices, data.dividends, {
-          amount,
-          frequency,
-          startDate: stableStartDate,
-          isDRIP,
-        })
-        addBenchmarkResult(benchTicker, result, data.dividendsUnavailable)
-      } catch (error) {
-        if (error instanceof HTTPError && error.status === 429) {
-          const retryAfterSeconds = error.retryAfterSeconds ?? 30
-          const retryAt = Date.now() + retryAfterSeconds * 1000
-          setBenchmarkError(benchTicker, error.message, retryAt)
-
-          const existing = benchmarkRetryTimeoutsRef.current[benchTicker]
-          if (existing) clearTimeout(existing)
-          benchmarkRetryTimeoutsRef.current[benchTicker] = setTimeout(() => {
-            delete benchmarkRetryTimeoutsRef.current[benchTicker]
-            // Only retry if still selected
-            if (useConfigStore.getState().benchmarkTickers.includes(benchTicker)) {
-              runBenchmarkFetchRef.current?.(benchTicker)
-            }
-          }, retryAfterSeconds * 1000)
-          return
-        }
-
-        setBenchmarkError(benchTicker, error instanceof Error ? error.message : 'Unknown error')
-      }
-    },
+    (benchTicker: string) =>
+      runPeerFetch(benchTicker, {
+        setLoading: setBenchmarkLoading,
+        addResult: addBenchmarkResult,
+        setError: setBenchmarkError,
+        retryTimeoutsRef: benchmarkRetryTimeoutsRef,
+        getActiveTickers: () => useConfigStore.getState().benchmarkTickers,
+        fetchRef: runBenchmarkFetchRef,
+      }),
     [
-      amount,
-      frequency,
-      stableStartDate,
-      stableEndDate,
-      isDRIP,
-      setBenchmarkLoading,
       addBenchmarkResult,
+      runPeerFetch,
       setBenchmarkError,
+      setBenchmarkLoading,
     ]
   )
 
