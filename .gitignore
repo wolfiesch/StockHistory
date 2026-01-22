@@ -7,3 +7,6 @@ logs/
 *.PNG
 *.png
 .env*.local
+.DS_Store
+.build/
+.swiftpm/
