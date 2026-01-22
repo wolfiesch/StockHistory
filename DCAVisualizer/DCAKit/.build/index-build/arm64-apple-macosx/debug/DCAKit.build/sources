@@ -1,9 +1,0 @@
-/Users/wolfgangschoenberger/Projects/StockHistory/DCAVisualizer/DCAKit/Sources/DCAKit/Engines/DCASimulator.swift
-/Users/wolfgangschoenberger/Projects/StockHistory/DCAVisualizer/DCAKit/Sources/DCAKit/Engines/InvestmentScheduleBuilder.swift
-/Users/wolfgangschoenberger/Projects/StockHistory/DCAVisualizer/DCAKit/Sources/DCAKit/Engines/LumpSumSimulator.swift
-/Users/wolfgangschoenberger/Projects/StockHistory/DCAVisualizer/DCAKit/Sources/DCAKit/Models/DCAConfig.swift
-/Users/wolfgangschoenberger/Projects/StockHistory/DCAVisualizer/DCAKit/Sources/DCAKit/Models/DividendHistory.swift
-/Users/wolfgangschoenberger/Projects/StockHistory/DCAVisualizer/DCAKit/Sources/DCAKit/Models/InvestmentFrequency.swift
-/Users/wolfgangschoenberger/Projects/StockHistory/DCAVisualizer/DCAKit/Sources/DCAKit/Models/PricePoint.swift
-/Users/wolfgangschoenberger/Projects/StockHistory/DCAVisualizer/DCAKit/Sources/DCAKit/Models/SimulationPoint.swift
-/Users/wolfgangschoenberger/Projects/StockHistory/DCAVisualizer/DCAKit/Sources/DCAKit/Models/SimulationResult.swift

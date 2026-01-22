@@ -1,3 +1,0 @@
-module StockHistoryAPI {
-    header "/Users/wolfgangschoenberger/Projects/StockHistory/DCAVisualizer/StockHistoryAPI/.build/index-build/arm64-apple-macosx/debug/StockHistoryAPI.build/include/StockHistoryAPI-Swift.h"
-}

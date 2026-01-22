@@ -66,7 +66,7 @@ final class DCAVisualizerUITests: XCTestCase {
         applySettings(in: app)
         waitForErrorState(in: app)
 
-        XCTAssertTrue(app.otherElements["errorView"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["errorRetryButton"].waitForExistence(timeout: 2))
         captureScreenshot("Error-State")
     }
 }
