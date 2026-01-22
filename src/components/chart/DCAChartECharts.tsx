@@ -36,8 +36,10 @@ export function DCAChartECharts() {
     const principalData = visibleData.map((p) => p.principal)
     const marketValueData = visibleData.map((p) => p.marketValue)
 
-    // Calculate interval to show ~10 labels max (prevents overlap)
-    const labelInterval = Math.max(1, Math.floor(dates.length / 10))
+    // Calculate interval from FULL dataset to keep labels stable during playback
+    // Using visible data length causes labels to shift as playback progresses
+    const fullDataLength = primary?.result?.points?.length ?? dates.length
+    const labelInterval = Math.max(1, Math.floor(fullDataLength / 10))
 
     return {
       backgroundColor: 'transparent',
@@ -208,7 +210,7 @@ export function DCAChartECharts() {
         },
       ],
     }
-  }, [visibleData])
+  }, [visibleData, primary?.result?.points])
 
   // Determine display state
   const showLoading = primary?.isLoading
