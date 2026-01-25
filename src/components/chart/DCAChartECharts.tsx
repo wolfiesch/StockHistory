@@ -134,7 +134,7 @@ export function DCAChartECharts() {
         axisLabel: {
           color: '#9ca3af',
           fontSize: 11,
-          interval: labelInterval - 1, // Show every Nth label (0-indexed, so -1)
+          interval: Math.max(0, labelInterval - 1), // Show every Nth label (0-indexed, so -1)
           rotate: xAxisDates.length > 60 ? 45 : 0, // Rotate labels for very long date ranges
           formatter: (value: string) => {
             const date = new Date(value)

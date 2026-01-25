@@ -20,7 +20,10 @@ struct ChartView: View, Equatable {
         lhs.currentIndex == rhs.currentIndex &&
         lhs.result.points.count == rhs.result.points.count &&
         lhs.lumpSumResult?.points.count == rhs.lumpSumResult?.points.count &&
-        lhs.yAxisMax == rhs.yAxisMax
+        lhs.yAxisMax == rhs.yAxisMax &&
+        // Include data identity to detect ticker changes with same point count
+        lhs.result.points.last?.date == rhs.result.points.last?.date &&
+        lhs.result.points.last?.totalValue == rhs.result.points.last?.totalValue
     }
 
     // MARK: - Static Formatters (created once, reused for all instances)
