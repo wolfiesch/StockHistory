@@ -9,7 +9,7 @@ const POPULAR_TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META'
 type ValidationState = 'idle' | 'validating' | 'valid' | 'invalid'
 
 function isValidTickerFormat(value: string): boolean {
-  return /^[A-Z]{1,5}$/.test(value)
+  return /^[A-Z0-9]{1,10}(?:[.-][A-Z0-9]{1,6})?$/.test(value)
 }
 
 export function TickerInput() {
@@ -23,7 +23,7 @@ export function TickerInput() {
   const validateTicker = useCallback(async (symbol: string) => {
     if (!symbol || !isValidTickerFormat(symbol)) {
       setValidationState('invalid')
-      setValidationError('Invalid ticker format (1-5 letters)')
+      setValidationError('Invalid ticker format (letters/numbers, optional . or - suffix)')
       setCompanyName(null)
       return false
     }

@@ -66,10 +66,7 @@ final class DCAVisualizerUITests: XCTestCase {
         applySettings(in: app)
         waitForErrorState(in: app)
 
-        let retryButton = app.buttons.matching(
-            NSPredicate(format: "identifier == 'errorRetryButton' OR label == 'Try Again'")
-        ).firstMatch
-        XCTAssertTrue(retryButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["errorRetryButton"].waitForExistence(timeout: 2))
         captureScreenshot("Error-State")
     }
 }

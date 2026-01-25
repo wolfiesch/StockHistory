@@ -36,6 +36,7 @@ interface MiniChartCanvasProps {
   totalReturn: number
   isLoading?: boolean
   error?: string | null
+  retryAt?: number | null
 }
 
 /**
@@ -86,6 +87,7 @@ export function MiniChartCanvas({
   totalReturn,
   isLoading,
   error,
+  retryAt,
 }: MiniChartCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -107,6 +109,16 @@ export function MiniChartCanvas({
     dividends: 0,
     gain: 0,
   })
+
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    if (!retryAt) return
+    setNowMs(Date.now())
+    const interval = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [retryAt])
+
+  const retryInSeconds = retryAt ? Math.max(0, Math.ceil((retryAt - nowMs) / 1000)) : null
 
   // Transform ALL data for Lightweight Charts
   const allChartData = useMemo(() => {
@@ -272,7 +284,14 @@ export function MiniChartCanvas({
   if (error) {
     return (
       <div className="bg-gray-900/50 rounded-xl p-4 h-48 flex items-center justify-center">
-        <span className="text-red-400">{error}</span>
+        <div className="text-center">
+          <div className="text-red-400">{error}</div>
+          {retryInSeconds !== null && retryInSeconds > 0 && (
+            <div className="text-xs text-gray-400 mt-2">
+              Retrying in {retryInSeconds}s...
+            </div>
+          )}
+        </div>
       </div>
     )
   }

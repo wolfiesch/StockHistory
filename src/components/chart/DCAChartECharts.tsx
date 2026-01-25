@@ -1,132 +1,287 @@
 'use client'
 
-import { useMemo, useRef } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import ReactECharts from 'echarts-for-react'
 import type { EChartsOption } from 'echarts'
 import { useSimulationStore } from '@/store/simulationStore'
 import { usePlaybackStore } from '@/store/playbackStore'
+import { useConfigStore } from '@/store/configStore'
 import { formatCurrency } from '@/lib/calculation/dcaEngine'
 import { ChartSkeleton } from '@/components/ui/Skeleton'
 
+// Benchmark series colors (matching the other chart implementations)
+const BENCHMARK_COLORS = ['#9ca3af', '#6b7280', '#d1d5db', '#4b5563']
+
 /**
- * DCA Chart using ECharts
- * - No watermark (unlike TradingView)
- * - Uses dynamic interval calculation for x-axis labels (~10 labels max)
+ * Format currency for Y-axis (compact for axis labels)
  */
+function formatAxisCurrency(value: number): string {
+  if (value >= 1000000) {
+    return '$' + (value / 1000000).toFixed(1) + 'M'
+  }
+  if (value >= 1000) {
+    return '$' + (value / 1000).toFixed(0) + 'K'
+  }
+  return '$' + value.toFixed(0)
+}
+
 export function DCAChartECharts() {
-  const chartRef = useRef<ReactECharts>(null)
+  const { primary, benchmarks } = useSimulationStore()
+  const { currentIndex } = usePlaybackStore()
+  const { showLumpSum } = useConfigStore()
 
-  const { primary } = useSimulationStore()
-  const { currentIndex, adaptiveXAxis, adaptiveYAxis } = usePlaybackStore()
+  // Retry countdown state
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    if (!primary?.retryAt) return
+    setNowMs(Date.now())
+    const interval = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [primary?.retryAt])
 
-  // Slice data up to current playback index for progressive reveal
-  const visibleData = useMemo(() => {
-    if (!primary?.result?.points) return null
-    const visibleIndex = Math.min(currentIndex + 1, primary.result.points.length)
-    return primary.result.points.slice(0, visibleIndex)
-  }, [primary?.result?.points, currentIndex])
+  const retryInSeconds = primary?.retryAt
+    ? Math.max(0, Math.ceil((primary.retryAt - nowMs) / 1000))
+    : null
 
   // Build ECharts option
   const option: EChartsOption = useMemo(() => {
-    if (!visibleData || visibleData.length === 0) {
+    if (!primary?.result?.points || primary.result.points.length === 0) {
       return {}
     }
 
-    // Full dates for stable x-axis labels throughout playback (fixed mode)
-    // Visible dates only for adaptive mode
-    const allPoints = primary?.result?.points ?? []
-    const allDates = allPoints.map((p) => p.date)
-    const visibleDates = visibleData.map((p) => p.date)
-    const principalData = visibleData.map((p) => p.principal)
-    const marketValueData = visibleData.map((p) => p.marketValue)
+    const visibleIndex = Math.min(currentIndex + 1, primary.result.points.length)
+    const visiblePoints = primary.result.points.slice(0, visibleIndex)
 
-    // Calculate y-axis range from FULL dataset for fixed mode
-    const allValues = allPoints.flatMap((p) => [p.principal, p.marketValue])
-    const yMax = Math.max(...allValues, 0)
-    const yAxisMax = yMax * 1.05 // Add 5% headroom so line doesn't touch top edge
+    // X-axis dates
+    const xData = visiblePoints.map((p) => p.date)
 
-    // Calculate y-axis range from VISIBLE data for adaptive mode
-    const visibleValues = visibleData.flatMap((p) => [p.principal, p.marketValue])
-    const visibleYMax = Math.max(...visibleValues, 0) * 1.05
+    // Build series array
+    const series: EChartsOption['series'] = [
+      // Principal (green area)
+      {
+        name: 'Principal',
+        type: 'line',
+        data: visiblePoints.map((p) => p.principal),
+        smooth: true,
+        symbol: 'none',
+        lineStyle: {
+          width: 2,
+          color: '#22c55e',
+        },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(34, 197, 94, 0.3)' },
+              { offset: 1, color: 'rgba(34, 197, 94, 0.05)' },
+            ],
+          },
+        },
+        emphasis: {
+          focus: 'series',
+        },
+        animationDuration: 300,
+      },
+      // Market Value (blue area)
+      {
+        name: 'Market Value',
+        type: 'line',
+        data: visiblePoints.map((p) => p.marketValue),
+        smooth: true,
+        symbol: 'none',
+        lineStyle: {
+          width: 2,
+          color: '#3b82f6',
+        },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(59, 130, 246, 0.3)' },
+              { offset: 1, color: 'rgba(59, 130, 246, 0.05)' },
+            ],
+          },
+        },
+        emphasis: {
+          focus: 'series',
+        },
+        animationDuration: 300,
+      },
+    ]
 
-    // Calculate label intervals based on data source
-    const xAxisDates = adaptiveXAxis ? visibleDates : allDates
-    const labelInterval = Math.max(1, Math.floor(xAxisDates.length / 10))
+    // Lump Sum (orange dashed) - if enabled
+    if (showLumpSum && primary.lumpSumResult?.points) {
+      const lumpSumPoints = primary.lumpSumResult.points.slice(0, visibleIndex)
+      series.push({
+        name: 'Lump Sum',
+        type: 'line',
+        data: lumpSumPoints.map((p) => p.marketValue),
+        smooth: true,
+        symbol: 'none',
+        lineStyle: {
+          width: 2,
+          color: '#f97316',
+          type: 'dashed',
+        },
+        emphasis: {
+          focus: 'series',
+        },
+        animationDuration: 300,
+      })
+    }
+
+    // Benchmarks (gray dashed lines)
+    benchmarks.forEach((bench, index) => {
+      if (bench.result?.points && bench.result.points.length > 0) {
+        const benchPoints = bench.result.points.slice(0, visibleIndex)
+        series.push({
+          name: bench.ticker,
+          type: 'line',
+          data: benchPoints.map((p) => p.marketValue),
+          smooth: true,
+          symbol: 'none',
+          lineStyle: {
+            width: 2,
+            color: BENCHMARK_COLORS[index % BENCHMARK_COLORS.length],
+            type: 'dashed',
+          },
+          emphasis: {
+            focus: 'series',
+          },
+          animationDuration: 300,
+        })
+      }
+    })
 
     return {
       backgroundColor: 'transparent',
-      animation: false, // Disable animation for smooth playback
+      animation: true,
+      animationDuration: 300,
+      animationDurationUpdate: 300,
+      animationEasing: 'cubicOut',
+      animationEasingUpdate: 'cubicInOut',
+      grid: {
+        left: 70,
+        right: 20,
+        top: 60,
+        bottom: 40,
+        containLabel: false,
+      },
       tooltip: {
         trigger: 'axis',
-        backgroundColor: '#1f2937',
+        backgroundColor: 'rgba(17, 24, 39, 0.95)',
         borderColor: '#374151',
+        borderWidth: 1,
+        padding: [12, 16],
         textStyle: {
-          color: '#e5e7eb',
+          color: '#fff',
+          fontSize: 13,
+        },
+        axisPointer: {
+          type: 'cross',
+          crossStyle: {
+            color: '#6b7280',
+          },
+          lineStyle: {
+            color: '#4b5563',
+            type: 'dashed',
+          },
         },
         formatter: (params: unknown) => {
-          const data = params as Array<{
-            axisValue: string
-            marker: string
+          const paramArray = params as Array<{
+            name: string
             seriesName: string
             value: number
+            color: string
           }>
-          if (!data || data.length === 0) return ''
+          if (!paramArray.length) return ''
 
-          const date = new Date(data[0].axisValue).toLocaleDateString('en-US', {
+          const date = new Date(paramArray[0].name).toLocaleDateString('en-US', {
             month: 'long',
             year: 'numeric',
           })
 
-          const principal = data.find((d) => d.seriesName === 'Principal')?.value ?? 0
-          const marketValue = data.find((d) => d.seriesName === 'Market Value')?.value ?? 0
-          const gainLoss = marketValue - principal
-          const gainLossPercent = principal > 0 ? (gainLoss / principal) * 100 : 0
-          const isProfit = gainLoss >= 0
+          let html = `<div style="font-weight: 500; margin-bottom: 8px; color: #9ca3af;">${date}</div>`
 
-          return `
-            <div style="font-size: 12px;">
-              <div style="color: #9ca3af; margin-bottom: 8px;">${date}</div>
-              <div style="display: flex; justify-content: space-between; gap: 16px;">
-                <span style="color: #22c55e;">Principal</span>
-                <span style="color: white; font-weight: 500;">${formatCurrency(principal)}</span>
+          // Find principal and market value for gain/loss calculation
+          let principal = 0
+          let marketValue = 0
+
+          paramArray.forEach((item) => {
+            const color = item.color as string
+            const formattedValue = formatCurrency(item.value)
+
+            if (item.seriesName === 'Principal') {
+              principal = item.value
+            }
+            if (item.seriesName === 'Market Value') {
+              marketValue = item.value
+            }
+
+            html += `
+              <div style="display: flex; justify-content: space-between; gap: 20px; margin: 4px 0;">
+                <span style="display: flex; align-items: center; gap: 6px;">
+                  <span style="width: 10px; height: 10px; border-radius: 50%; background: ${color};"></span>
+                  ${item.seriesName}
+                </span>
+                <span style="font-weight: 600;">${formattedValue}</span>
               </div>
-              <div style="display: flex; justify-content: space-between; gap: 16px;">
-                <span style="color: #3b82f6;">Market Value</span>
-                <span style="color: white; font-weight: 500;">${formatCurrency(marketValue)}</span>
-              </div>
-              <div style="border-top: 1px solid #374151; margin-top: 8px; padding-top: 8px; display: flex; justify-content: space-between; gap: 16px;">
+            `
+          })
+
+          // Add gain/loss if we have both values
+          if (principal > 0 && marketValue > 0) {
+            const gainLoss = marketValue - principal
+            const gainLossPercent = (gainLoss / principal) * 100
+            const isProfit = gainLoss >= 0
+            const color = isProfit ? '#4ade80' : '#f87171'
+            const sign = isProfit ? '+' : ''
+
+            html += `
+              <div style="border-top: 1px solid #374151; margin-top: 8px; padding-top: 8px; display: flex; justify-content: space-between; gap: 20px;">
                 <span style="color: #9ca3af;">Gain/Loss</span>
-                <span style="color: ${isProfit ? '#4ade80' : '#f87171'}; font-weight: bold;">
-                  ${isProfit ? '+' : ''}${formatCurrency(gainLoss)} (${isProfit ? '+' : ''}${gainLossPercent.toFixed(1)}%)
+                <span style="font-weight: 700; color: ${color};">
+                  ${sign}${formatCurrency(gainLoss)} (${sign}${gainLossPercent.toFixed(1)}%)
                 </span>
               </div>
-            </div>
-          `
+            `
+          }
+
+          return html
         },
       },
       legend: {
-        data: ['Principal', 'Market Value'],
+        show: true,
         top: 10,
         left: 10,
+        orient: 'horizontal',
         textStyle: {
           color: '#9ca3af',
+          fontSize: 12,
         },
-        icon: 'circle',
-        itemWidth: 10,
-        itemHeight: 10,
-      },
-      grid: {
-        left: 10,
-        right: 60,
-        top: 50,
-        bottom: 30,
-        containLabel: true,
+        itemWidth: 14,
+        itemHeight: 14,
+        itemGap: 16,
+        icon: 'roundRect',
       },
       xAxis: {
         type: 'category',
-        data: xAxisDates,
+        data: xData,
         boundaryGap: false,
         axisLine: {
+          lineStyle: {
+            color: '#374151',
+          },
+        },
+        axisTick: {
           lineStyle: {
             color: '#374151',
           },
@@ -134,8 +289,8 @@ export function DCAChartECharts() {
         axisLabel: {
           color: '#9ca3af',
           fontSize: 11,
-          interval: Math.max(0, labelInterval - 1), // Show every Nth label (0-indexed, so -1)
-          rotate: xAxisDates.length > 60 ? 45 : 0, // Rotate labels for very long date ranges
+          hideOverlap: true,  // Auto-hide overlapping labels (ECharts 5.3+)
+          interval: 'auto',   // Let ECharts auto-calculate label spacing
           formatter: (value: string) => {
             const date = new Date(value)
             return date.toLocaleDateString('en-US', {
@@ -150,21 +305,19 @@ export function DCAChartECharts() {
       },
       yAxis: {
         type: 'value',
-        position: 'right',
-        min: 0,
-        max: adaptiveYAxis ? visibleYMax : yAxisMax,
+        animation: true,
+        animationDuration: 300,
+        animationDurationUpdate: 300,
         axisLine: {
+          show: false,
+        },
+        axisTick: {
           show: false,
         },
         axisLabel: {
           color: '#9ca3af',
           fontSize: 11,
-          formatter: (value: number) => {
-            if (value >= 1000) {
-              return `$${(value / 1000).toFixed(0)}k`
-            }
-            return `$${value}`
-          },
+          formatter: formatAxisCurrency,
         },
         splitLine: {
           lineStyle: {
@@ -173,58 +326,9 @@ export function DCAChartECharts() {
           },
         },
       },
-      series: [
-        {
-          name: 'Principal',
-          type: 'line',
-          data: principalData,
-          smooth: false,
-          symbol: 'none',
-          lineStyle: {
-            color: '#22c55e',
-            width: 2,
-          },
-          areaStyle: {
-            color: {
-              type: 'linear',
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color: 'rgba(34, 197, 94, 0.4)' },
-                { offset: 1, color: 'rgba(34, 197, 94, 0.0)' },
-              ],
-            },
-          },
-        },
-        {
-          name: 'Market Value',
-          type: 'line',
-          data: marketValueData,
-          smooth: false,
-          symbol: 'none',
-          lineStyle: {
-            color: '#3b82f6',
-            width: 2,
-          },
-          areaStyle: {
-            color: {
-              type: 'linear',
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [
-                { offset: 0, color: 'rgba(59, 130, 246, 0.4)' },
-                { offset: 1, color: 'rgba(59, 130, 246, 0.0)' },
-              ],
-            },
-          },
-        },
-      ],
+      series,
     }
-  }, [visibleData, primary?.result?.points, adaptiveXAxis, adaptiveYAxis])
+  }, [primary, currentIndex, showLumpSum, benchmarks])
 
   // Determine display state
   const showLoading = primary?.isLoading
@@ -241,9 +345,9 @@ export function DCAChartECharts() {
         <ReactECharts
           option={option}
           style={{ width: '100%', height: 'calc(100% - 32px)' }}
-          ref={chartRef}
           opts={{ renderer: 'canvas' }}
-          notMerge={true}
+          notMerge={false}
+          lazyUpdate={true}
         />
       )}
 
@@ -262,7 +366,14 @@ export function DCAChartECharts() {
 
       {showError && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-red-400">{primary?.error}</div>
+          <div className="text-center">
+            <div className="text-red-400">{primary?.error}</div>
+            {retryInSeconds !== null && retryInSeconds > 0 && (
+              <div className="text-sm text-gray-400 mt-2">
+                Retrying in {retryInSeconds}s...
+              </div>
+            )}
+          </div>
         </div>
       )}
 

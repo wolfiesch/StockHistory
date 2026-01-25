@@ -14,6 +14,9 @@ import { DCAChartECharts as DCAChart } from '../DCAChartECharts'
 const mockPrimary = {
   isLoading: false,
   error: null,
+  dividendsUnavailable: false,
+  retryAt: null,
+  lumpSumResult: null,
   result: {
     points: [
       { date: '2023-01-01', principal: 100, marketValue: 110, dividends: 0, shares: 10 },
@@ -30,11 +33,15 @@ const mockPrimary = {
 }
 
 vi.mock('@/store/simulationStore', () => ({
-  useSimulationStore: vi.fn(() => ({ primary: null })),
+  useSimulationStore: vi.fn(() => ({ primary: null, benchmarks: [] })),
 }))
 
 vi.mock('@/store/playbackStore', () => ({
   usePlaybackStore: vi.fn(() => ({ currentIndex: 2 })),
+}))
+
+vi.mock('@/store/configStore', () => ({
+  useConfigStore: vi.fn(() => ({ showLumpSum: false })),
 }))
 
 // Import mocked stores to control them
@@ -51,7 +58,7 @@ describe('DCAChart', () => {
 
   describe('hooks rules compliance', () => {
     it('renders without hook violations when primary is null', () => {
-      mockUseSimulationStore.mockReturnValue({ primary: null })
+      mockUseSimulationStore.mockReturnValue({ primary: null, benchmarks: [] })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 0 })
 
       // This would throw "Rendered more hooks than during the previous render"
@@ -63,6 +70,7 @@ describe('DCAChart', () => {
     it('renders without hook violations when loading', () => {
       mockUseSimulationStore.mockReturnValue({
         primary: { isLoading: true, error: null, result: null },
+        benchmarks: [],
       })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 0 })
 
@@ -72,6 +80,7 @@ describe('DCAChart', () => {
     it('renders without hook violations when error', () => {
       mockUseSimulationStore.mockReturnValue({
         primary: { isLoading: false, error: 'Test error', result: null },
+        benchmarks: [],
       })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 0 })
 
@@ -80,7 +89,7 @@ describe('DCAChart', () => {
     })
 
     it('renders without hook violations with data', () => {
-      mockUseSimulationStore.mockReturnValue({ primary: mockPrimary })
+      mockUseSimulationStore.mockReturnValue({ primary: mockPrimary, benchmarks: [] })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 2 })
 
       expect(() => render(<DCAChart />)).not.toThrow()
@@ -88,7 +97,7 @@ describe('DCAChart', () => {
 
     it('handles state transitions without hook violations', () => {
       // Start with null
-      mockUseSimulationStore.mockReturnValue({ primary: null })
+      mockUseSimulationStore.mockReturnValue({ primary: null, benchmarks: [] })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 0 })
 
       const { rerender } = render(<DCAChart />)
@@ -97,17 +106,19 @@ describe('DCAChart', () => {
       // Transition to loading
       mockUseSimulationStore.mockReturnValue({
         primary: { isLoading: true, error: null, result: null },
+        benchmarks: [],
       })
       expect(() => rerender(<DCAChart />)).not.toThrow()
 
       // Transition to data
-      mockUseSimulationStore.mockReturnValue({ primary: mockPrimary })
+      mockUseSimulationStore.mockReturnValue({ primary: mockPrimary, benchmarks: [] })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 2 })
       expect(() => rerender(<DCAChart />)).not.toThrow()
 
       // Transition back to error
       mockUseSimulationStore.mockReturnValue({
         primary: { isLoading: false, error: 'Connection failed', result: null },
+        benchmarks: [],
       })
       expect(() => rerender(<DCAChart />)).not.toThrow()
       expect(screen.getByText('Connection failed')).toBeInTheDocument()
@@ -122,6 +133,7 @@ describe('DCAChart', () => {
           error: null,
           result: { points: [] },
         },
+        benchmarks: [],
       })
       mockUsePlaybackStore.mockReturnValue({ currentIndex: 0 })
 

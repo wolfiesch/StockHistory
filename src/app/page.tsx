@@ -1,14 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { DCAChart } from '@/components/chart/DCAChart'
+import { DCAChartEChartsWrapper } from '@/components/chart/DCAChartEChartsWrapper'
+import { RollingChart } from '@/components/chart/RollingChart'
 import { PlaybackControls } from '@/components/chart/PlaybackControls'
+import { RollingControls } from '@/components/chart/RollingControls'
+import { WindowExplorer } from '@/components/chart/WindowExplorer'
 import { ComparisonGrid } from '@/components/chart/ComparisonGrid'
 import { ConfigPanel } from '@/components/config/ConfigPanel'
 import { MetricsSummary } from '@/components/summary/MetricsSummary'
+import { RollingMetricsSummary } from '@/components/summary/RollingMetricsSummary'
 import { Drawer } from '@/components/ui/Drawer'
+import { ViewModeToggle } from '@/components/ui/ViewModeToggle'
 import { useDCASimulation } from '@/hooks/useDCASimulation'
+import { useRollingWindowAnalysis } from '@/hooks/useRollingWindowAnalysis'
 import { useURLSync } from '@/hooks/useURLSync'
+import { useConfigStore } from '@/store/configStore'
 import {
   ErrorBoundary,
   ChartErrorFallback,
@@ -49,17 +56,21 @@ function SettingsIcon() {
 
 export default function Home() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const { viewMode } = useConfigStore()
 
-  // Initialize simulation hook (manages data fetching based on config changes)
+  // Initialize simulation hooks based on view mode
   useDCASimulation()
+  useRollingWindowAnalysis()
   // Sync config with URL for shareable links
   useURLSync()
+
+  const isRollingMode = viewMode === 'rolling'
 
   return (
     <main className="min-h-screen p-4 md:p-8 lg:px-12">
       <div className="max-w-[1800px] mx-auto space-y-6">
         {/* Header */}
-        <header className="flex items-center justify-between mb-8">
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600/20 rounded-xl text-blue-400">
               <TrendUpIcon />
@@ -69,41 +80,66 @@ export default function Home() {
                 DCA Investment Visualizer
               </h1>
               <p className="text-gray-400">
-                See how recurring investments would have grown over time
+                {isRollingMode
+                  ? 'Analyze historical DCA outcomes across all time periods'
+                  : 'See how recurring investments would have grown over time'}
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setIsDrawerOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors"
-            aria-label="Open settings"
-          >
-            <SettingsIcon />
-            <span className="hidden sm:inline">Settings</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <ViewModeToggle />
+            <button
+              onClick={() => setIsDrawerOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors"
+              aria-label="Open settings"
+            >
+              <SettingsIcon />
+              <span className="hidden sm:inline">Settings</span>
+            </button>
+          </div>
         </header>
 
-        {/* Main Content - Full Width */}
+        {/* Main Content - Conditional based on view mode */}
         <div className="space-y-6">
-          {/* Metrics Summary */}
-          <ErrorBoundary fallback={<MetricsErrorFallback />}>
-            <MetricsSummary onSettingsClick={() => setIsDrawerOpen(true)} />
-          </ErrorBoundary>
+          {isRollingMode ? (
+            <>
+              {/* Rolling Analysis Mode */}
+              <ErrorBoundary fallback={<MetricsErrorFallback />}>
+                <RollingMetricsSummary onSettingsClick={() => setIsDrawerOpen(true)} />
+              </ErrorBoundary>
 
-          {/* Main Chart */}
-          <ErrorBoundary fallback={<ChartErrorFallback />}>
-            <DCAChart />
-          </ErrorBoundary>
+              <ErrorBoundary fallback={<ChartErrorFallback />}>
+                <RollingChart />
+              </ErrorBoundary>
 
-          {/* Playback Controls */}
-          <ErrorBoundary>
-            <PlaybackControls />
-          </ErrorBoundary>
+              <ErrorBoundary>
+                <RollingControls />
+              </ErrorBoundary>
 
-          {/* Comparison Grid (if comparisons exist) */}
-          <ErrorBoundary>
-            <ComparisonGrid />
-          </ErrorBoundary>
+              <ErrorBoundary>
+                <WindowExplorer />
+              </ErrorBoundary>
+            </>
+          ) : (
+            <>
+              {/* Single Scenario Mode */}
+              <ErrorBoundary fallback={<MetricsErrorFallback />}>
+                <MetricsSummary onSettingsClick={() => setIsDrawerOpen(true)} />
+              </ErrorBoundary>
+
+              <ErrorBoundary fallback={<ChartErrorFallback />}>
+                <DCAChartEChartsWrapper />
+              </ErrorBoundary>
+
+              <ErrorBoundary>
+                <PlaybackControls />
+              </ErrorBoundary>
+
+              <ErrorBoundary>
+                <ComparisonGrid />
+              </ErrorBoundary>
+            </>
+          )}
         </div>
 
         {/* Footer */}

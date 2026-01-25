@@ -5,6 +5,7 @@ interface ExportConfig {
   amount: number
   frequency: InvestmentFrequency
   startDate: string
+  endDate: string
   isDRIP: boolean
 }
 
@@ -22,6 +23,7 @@ export function simulationToCSV(
   lines.push(`# Ticker: ${config.ticker}`)
   lines.push(`# Investment Amount: $${config.amount} ${config.frequency}`)
   lines.push(`# Start Date: ${config.startDate}`)
+  lines.push(`# End Date: ${config.endDate}`)
   lines.push(`# DRIP Enabled: ${config.isDRIP ? 'Yes' : 'No'}`)
   lines.push(`# Generated: ${new Date().toISOString()}`)
   lines.push('')
