@@ -142,6 +142,7 @@ export function PlaybackControls() {
             </button>
           ))}
         </div>
+
       </div>
     </div>
   )
